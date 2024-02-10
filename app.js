@@ -19,7 +19,12 @@ const usersjson = JSON.stringify(users);
 
 //LER DADOS DO DB
 app.get('/usuarios',async (req,res)=>{
-    const result = await pool.query('SELECT * FROM usuario;')
+    const result = await pool.query(`
+    SELECT u.user_id, u.name, u.email, 
+    COUNT(p.phone) AS phones
+    FROM usuario AS u
+    LEFT JOIN phones AS p ON u.user_id = p.id_phone_user 
+    GROUP BY u.user_id, u.name, u.email;`)
     console.log(result.rows)
     res.status(200).send(result.rows)
   
@@ -28,34 +33,53 @@ app.get('/usuarios',async (req,res)=>{
 
 //LER UM DADO ESPECIFICO DO DB
 app.get('/usuarios/:id',async(req,res)=>{
-    // const finBysId=users.filter((user)=>user.id===req.params.id)
+    const finBysId=users.filter((user)=>user.id===req.params.id)
     // console.log(finBysId)
-    const query = 'SELECT * FROM usuario where user_id = $1;'
-    const param = [req.params.id]
-    const result = await pool.query(query,param)
+    if(finBysId.length>0){
+        const query = `
+        SELECT u.user_id, u.name, u.email, 
+        COUNT(p.phone) AS phones
+        FROM usuario AS u
+        LEFT JOIN phones AS p ON u.user_id = p.id_phone_user 
+        where u.user_id =$1
+        GROUP BY u.user_id, u.name, u.email;`
+        const param = [req.params.id]
+        const result = await pool.query(query,param)
+    
+        res.status(200).send(result.rows)
+    }else{
+        res.status(404).send("message: Usuario não encontrado")
+    }
 
-    res.status(200).send(result.rows)
 })
 
 
 //ADICIONAR DADOS NO DB
-app.post('/usuarios',(req,res)=>{ 
-     const user = req.body
+app.post('/usuarios',async(req,res)=>{ 
      const email = req.body.email
      const name = req.body.name
+     const phone = req.body.phone
 
-     
-    // const findEmail = users.filter((i)=>i.email===user.email)
-    // if(findEmail.length>0){
-    //     res.status(208).send("Email já cadastrado")
-    // }else{
-    //     res.status(201).send(user)
-    //     users.push(user)
-
-    //     fs.writeFileSync("fakedb.json",usersjson,"utf-8");
-    // }
-    console.log(user.email)
-    res.send(email)
+     if(phone){
+        const client = await pool.connect()
+        const idPerson = await client.query(
+            'insert into usuario (name,email) values ($1, $2) returning user_id;',
+            [name, email]
+            )
+            console.log(idPerson.rows[0].user_id)
+            const result = await client.query(
+            'insert into phones (phone, id_phone_user) values ($1, $2);',
+            [phone, idPerson.rows[0].user_id]
+            )
+            client.release() 
+        res.send("criado").status(201)
+     }else{
+        const query = `insert into usuario (name,email) values ($1, $2)`
+        const params = [name,email]
+        const result= await pool.query(query,params)
+        res.status(201).send(result)  
+        console.log(result) 
+     }
 
 })
 
