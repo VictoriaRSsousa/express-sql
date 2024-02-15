@@ -1,12 +1,9 @@
 const express = require('express')
-
 const pool = require('./connection.js')
 
 const app = express()
 
 app.use(express.json())
-
-
 
 
 //LER DADOS DO DB
@@ -18,9 +15,7 @@ app.get('/usuarios',async (req,res)=>{
     LEFT JOIN phones AS p ON u.user_id = p.id_phone_user 
     GROUP BY u.user_id, u.name, u.email;`)
     res.status(200).send(result.rows)
-  
 })
-
 
 //LER UM DADO ESPECIFICO DO DB
 app.get('/usuarios/:id',async(req,res)=>{
@@ -39,13 +34,22 @@ app.get('/usuarios/:id',async(req,res)=>{
             res.status(404).send("message: Usuario não encontrado")
         }
 })
+app.get('/phones', async(req,res)=>{
+    // const query = 
+    const result = await pool.query(`SELECT p.phone_id,p.phone,u.name  from phones as p join usuario as u on id_phone_user = user_id; `)
+    res.send(result.rows).status(200)
+})
 
-// app.get('/usuarios', async(req,res)=>{
-//     const {pa1,pa2} =  req.query
-//     console.log(pa1)
-//     console.log(pa2)
-//     res.send(pa1,pa2).status(500)
-// })
+app.get('/phones/:id', async(req,res)=>{
+    const query = `SELECT p.phone_id, p.phone,u.name  from phones as p join usuario as u on id_phone_user = user_id where phone_id = $1; `
+    const param = [req.params.id]
+    const result = await pool.query(query,param)
+    if(result.rows.length>0){
+        res.status(200).send(result.rows)
+    }else{
+        res.status(404).send("message: Telefone do usuario não encontrado")
+    }
+})
 
 
 //ADICIONAR DADOS NO DB
@@ -72,7 +76,17 @@ app.post('/usuarios',async(req,res)=>{
         const result= await pool.query(query,params)
         res.status(201).send(result)  
      }
+})
 
+app.post('/phones/:id', async(req,res)=>{
+    const phone = req.body.phone
+    const phone_user_id = req.params.id
+
+    const query = `insert into phones (phone , id_phone_user) values ($1,$2); `
+    const params = [phone,phone_user_id]
+    const result = await pool.query(query,params)
+    console.log(result)
+    res.status(201).send(result)
 })
 
 
@@ -91,8 +105,7 @@ app.put('/usuarios/:id',async(req,res)=>{
         if(name){
             const query = `UPDATE usuario SET name = $1 where user_id = $2;`
             const param = [name,req.params.id]
-            await pool.query(query,param)
-            
+            await pool.query(query,param)          
         }
         if(email) {
             const query = `UPDATE usuario SET email = $1 where user_id = $2;`
@@ -105,12 +118,50 @@ app.put('/usuarios/:id',async(req,res)=>{
     }
 })
 
+app.put('/phones/:id',async(req,res)=>{
+   const query =` SELECT phone_id FROM phones
+    where phone_id =$1;`
+    const paramId = [req.params.id]
+    const result = await pool.query(query,paramId)
+    if(result.rows.length<0){
+        res.send("Telefone de usuario não encontrado!")
+    }else{
+        const phone = req.body.phone
+        const queryUpdate = `UPDATE phones set phone = $1 where phone_id = $2`
+        const params = [phone,req.params.id]
+        const result =await pool.query(queryUpdate,params)
+        if(result.rowCount>0){
+            res.send("Telefone atualizado com sucesso!").status(200)
+    
+        }else{
+            res.send("Erro na atualização!")
+        }     
+    }
+})
+
 
 //DELETAR DADO ESPECIFICO DO DB
 app.delete('/usuarios/:id',async (req,res)=>{
     const deleteQuery = ` delete from usuario where user_id = $1`
-    await pool.query(deleteQuery,[req.params.id])
-    res.send(`Usuario deletado com sucesso!`).status(200)
+    const result = await pool.query(deleteQuery,[req.params.id])
+    if(result.rowCount>0){
+        res.send("Usuario deletado com sucesso!").status(200)
+
+    }else{
+        res.send("Usuário não encontrado!")
+    }
+})
+
+app.delete('/phones/:id', async(req,res)=>{
+    const deleteQuery = 'delete from phones where phone_id=$1;'
+    const result = await pool.query(deleteQuery,[req.params.id])
+    if(result.rowCount>0){
+        res.send("Telefone deletado com sucesso!").status(200)
+
+    }else{
+        res.send("Telefone não encontrado!")
+    }
+    
 })
 
 
