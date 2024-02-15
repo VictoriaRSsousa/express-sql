@@ -1,18 +1,10 @@
 const express = require('express')
-const fs = require('fs')
-const fakedb = require('./fakedb.json')
 
 const pool = require('./connection.js')
-
 
 const app = express()
 
 app.use(express.json())
-
-const leitura = fs.readFileSync('fakedb.json','utf-8') 
-
-const users =JSON.parse(leitura)
-const usersjson = JSON.stringify(users);
 
 
 
@@ -25,7 +17,6 @@ app.get('/usuarios',async (req,res)=>{
     FROM usuario AS u
     LEFT JOIN phones AS p ON u.user_id = p.id_phone_user 
     GROUP BY u.user_id, u.name, u.email;`)
-    console.log(result.rows)
     res.status(200).send(result.rows)
   
 })
@@ -33,9 +24,6 @@ app.get('/usuarios',async (req,res)=>{
 
 //LER UM DADO ESPECIFICO DO DB
 app.get('/usuarios/:id',async(req,res)=>{
-    const finBysId=users.filter((user)=>user.id===req.params.id)
-    // console.log(finBysId)
-    if(finBysId.length>0){
         const query = `
         SELECT u.user_id, u.name, u.email, 
         COUNT(p.phone) AS phones
@@ -45,12 +33,11 @@ app.get('/usuarios/:id',async(req,res)=>{
         GROUP BY u.user_id, u.name, u.email;`
         const param = [req.params.id]
         const result = await pool.query(query,param)
-    
-        res.status(200).send(result.rows)
-    }else{
-        res.status(404).send("message: Usuario não encontrado")
-    }
-
+        if(result.rows.length>0){
+            res.status(200).send(result.rows)
+        }else{
+            res.status(404).send("message: Usuario não encontrado")
+        }
 })
 
 
@@ -66,8 +53,7 @@ app.post('/usuarios',async(req,res)=>{
             'insert into usuario (name,email) values ($1, $2) returning user_id;',
             [name, email]
             )
-            console.log(idPerson.rows[0].user_id)
-            const result = await client.query(
+            await client.query(
             'insert into phones (phone, id_phone_user) values ($1, $2);',
             [phone, idPerson.rows[0].user_id]
             )
@@ -78,39 +64,46 @@ app.post('/usuarios',async(req,res)=>{
         const params = [name,email]
         const result= await pool.query(query,params)
         res.status(201).send(result)  
-        console.log(result) 
      }
 
 })
 
+
+//atualizar telefones!!!!!!!!
 //ATUALIZAR DADO ESPECIFICO DO DB
 
-app.put('/usuarios/:id',(req,res)=>{
-    const finBysId=users.filter((user)=>user.id===req.params.id)
-
-    if(finBysId.length){
-        const newUser = req.body
-        users[req.params.id-1] = newUser
-        res.status(200).send(newUser)
-        fs.writeFileSync("fakedb.json",usersjson,"utf-8");
+app.put('/usuarios/:id',async(req,res)=>{
+    const query = `
+    SELECT user_id FROM usuario
+    where user_id =$1;`
+    const paramId = [req.params.id]
+    const result = await pool.query(query,paramId)
+    if(result.rows.length>0){
+        const email = req.body.email
+        const name = req.body.name
+        if(name){
+            const query = `UPDATE usuario SET name = $1 where user_id = $2;`
+            const param = [name,req.params.id]
+            await pool.query(query,param)
+            
+        }
+        if(email) {
+            const query = `UPDATE usuario SET email = $1 where user_id = $2;`
+            const param = [email,req.params.id]
+            await pool.query(query,param)
+        }
+        res.status(200).send(`Usuario atualizado com sucesso!! `)
     }else{
-        res.status(404).send("message:ID requerido não encontrado")
+        res.status(404).send("message: Usuario não encontrado")
     }
 })
 
 
 //DELETAR DADO ESPECIFICO DO DB
-app.delete('/usuarios/:id',(req,res)=>{
-    const finBysId=users.filter((user)=>user.id===req.params.id)
-    console.log(finBysId)
-     if(finBysId.length){
-        const removed = users.splice(req.params.id-1,1)
-        res.status(200).send(removed)
-        fs.writeFileSync("fakedb.json",usersjson,"utf-8");
-     }else{
-        res.status(404).send("message:ID requerido não encontrado")
-     }
-
+app.delete('/usuarios/:id',async (req,res)=>{
+    const deleteQuery = ` delete from usuario where user_id = $1`
+    await pool.query(deleteQuery,[req.params.id])
+    res.send(`Usuario deletado com sucesso!`).status(200)
 })
 
 
