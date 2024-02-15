@@ -40,6 +40,13 @@ app.get('/usuarios/:id',async(req,res)=>{
         }
 })
 
+// app.get('/usuarios', async(req,res)=>{
+//     const {pa1,pa2} =  req.query
+//     console.log(pa1)
+//     console.log(pa2)
+//     res.send(pa1,pa2).status(500)
+// })
+
 
 //ADICIONAR DADOS NO DB
 app.post('/usuarios',async(req,res)=>{ 
