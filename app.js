@@ -6,6 +6,8 @@ const app = express()
 app.use(express.json())
 
 
+//função de validação
+
 //LER DADOS DO DB
 app.get('/usuarios',async (req,res)=>{
     const result = await pool.query(`
@@ -41,7 +43,7 @@ app.get('/phones', async(req,res)=>{
 })
 
 app.get('/phones/:id', async(req,res)=>{
-    const query = `SELECT p.phone_id, p.phone,u.name  from phones as p join usuario as u on id_phone_user = user_id where phone_id = $1; `
+    const query = `SELECT p.phone_id, p.phone,u.name  from phones as p join usuario as u on id_phone_user = user_id where id_phone_user = $1; `
     const param = [req.params.id]
     const result = await pool.query(query,param)
     if(result.rows.length>0){
@@ -58,35 +60,54 @@ app.post('/usuarios',async(req,res)=>{
      const name = req.body.name
      const phone = req.body.phone
 
-     if(phone){
-        const client = await pool.connect()
-        const idPerson = await client.query(
-            'insert into usuario (name,email) values ($1, $2) returning user_id;',
-            [name, email]
-            )
-            await client.query(
-            'insert into phones (phone, id_phone_user) values ($1, $2);',
-            [phone, idPerson.rows[0].user_id]
-            )
-            client.release() 
-        res.send("criado").status(201)
-     }else{
-        const query = `insert into usuario (name,email) values ($1, $2)`
-        const params = [name,email]
-        const result= await pool.query(query,params)
-        res.status(201).send(result)  
-     }
+     if(phone && email && name){
+            const usuario = email.substring(0, email.indexOf("@"));
+            const dominio = email.substring(email.indexOf("@")+ 1, email.length);
+            if ((usuario.length >=1) &&
+                (dominio.length >=3) &&
+                (usuario.search("@")==-1) &&
+                (dominio.search("@")==-1) &&
+                (usuario.search(" ")==-1) &&
+                (dominio.search(" ")==-1) &&
+                (dominio.search(".")!=-1) &&
+                (dominio.indexOf(".") >=1)&&
+                (dominio.lastIndexOf(".") < dominio.length - 1) &&
+                phone.length>8){
+                    
+                const client = await pool.connect()
+                const idPerson = await client.query(
+                    'insert into usuario (name,email) values ($1, $2) returning user_id;',
+                    [name, email]
+                    )
+                    await client.query(
+                    'insert into phones (phone, id_phone_user) values ($1, $2);',
+                    [phone, idPerson.rows[0].user_id]
+                    )
+                    client.release() 
+                    res.send("criado").status(201)
+                }else{
+                    res.send("Dados inválidos!").status(400)
+                }
+            
+            }else if(name && email){
+                const query = `insert into usuario (name,email) values ($1, $2)`
+                const params = [name,email]
+                const result= await pool.query(query,params)
+                res.status(201).send(result)  
+            }
 })
 
 app.post('/phones/:id', async(req,res)=>{
     const phone = req.body.phone
     const phone_user_id = req.params.id
-
-    const query = `insert into phones (phone , id_phone_user) values ($1,$2); `
-    const params = [phone,phone_user_id]
-    const result = await pool.query(query,params)
-    console.log(result)
-    res.status(201).send(result)
+    if(phone.length>8){
+        const query = `insert into phones (phone , id_phone_user) values ($1,$2); `
+        const params = [phone,phone_user_id]
+        const result = await pool.query(query,params)
+        res.status(201).send(result)
+    }else{
+        res.send("message: Entrada inválida!").status(400)
+    }
 })
 
 
@@ -117,6 +138,8 @@ app.put('/usuarios/:id',async(req,res)=>{
         res.status(404).send("message: Usuario não encontrado")
     }
 })
+
+
 
 app.put('/phones/:id',async(req,res)=>{
    const query =` SELECT phone_id FROM phones
